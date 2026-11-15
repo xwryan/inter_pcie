@@ -1,12 +1,10 @@
-// tests：独立验证 Data credit 不足、RX 32-credit 门槛和有限/无限初始化。
-// 依赖 pair_test 与 credit_manager；运行态流控通过真实引脚往返，初始化测试则
-// 手工核对逐拍输出，避免只通过两份相同实现互相收发而漏掉协议单位错误。
+// 验证 Data credit 不足、RX 32-credit 门槛和有限/无限信用初始化；
+// 初始化逐拍手工核对，避免两份相同实现互相收发而掩盖协议单位错误。
 
 // Header 空间充足时单独耗尽 Data，证明两类门控独立且归还必须经过 receive。
 class intel_pcie_data_credit_test extends intel_pcie_pair_test;
     `uvm_component_utils(intel_pcie_data_credit_test)
 
-    // 两个 adapter 由基类拥有；本类只创建测试流量和观察信用恢复。
     function new(string name="intel_pcie_data_credit_test", uvm_component parent=null);
         super.new(name,parent);
     endfunction
@@ -17,8 +15,7 @@ class intel_pcie_data_credit_test extends intel_pcie_pair_test;
         hip_cfg.data_capacity[0]=64;
     endfunction
 
-    // 保持前两包不出队；核对 Header 仍充足、Data 只剩16，然后逐包取出恢复。
-    // sent_packets 跨场景累计，所以比较本次增量而不是假设初始统计为零。
+    // 前两包不出队时 Header 仍充足而 Data 只剩 16；sent_packets 跨场景累计，故比较增量。
     task check_data_limit(intel_pcie_if_adapter source, intel_pcie_if_adapter sink);
         pcie_tl_tlp batch[$], got;
         bit finished=0;
@@ -79,7 +76,6 @@ endclass
 class intel_pcie_credit_init_test extends uvm_test;
     `uvm_component_utils(intel_pcie_credit_init_test)
 
-    // 所有 manager/config 仅在当前 run_phase 存活，不访问 testbench 引脚。
     function new(string name="intel_pcie_credit_init_test", uvm_component parent=null);
         super.new(name,parent);
     endfunction

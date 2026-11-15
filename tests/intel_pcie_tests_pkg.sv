@@ -1,5 +1,4 @@
-// tests：统一测试注册入口；依赖已编译的 UVM、pcie_tl_pkg、Intel adapter 和控制接口。
-// 仅 include 测试类，不进入产品库 filelist；测试创建的对象不影响其它仿真进程。
+// 测试包：只 include 测试类，不进入产品库 filelist。
 package intel_pcie_tests_pkg;
     import uvm_pkg::*;
     import host_mem_pkg::*;

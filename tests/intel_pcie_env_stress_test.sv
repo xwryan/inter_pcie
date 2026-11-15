@@ -1,14 +1,12 @@
-// tests：Intel 引脚链路的有界深度压力测试；依赖 intel_pcie_env_test 建立的真实 adapter/env。
-// 本文件只编排公共 pcie_tl_rw_seq，不复制事务层实现；测试拥有 golden/保护区并在结束释放内存。
+// Intel 引脚链路上的有界并发压力测试，只编排公共 pcie_tl_rw_seq。
 class intel_pcie_env_stress_test extends intel_pcie_env_test;
     `uvm_component_utils(intel_pcie_env_stress_test)
 
-    // 标准构造；共用基类的 SCB 和引脚环境，不另开观察流。
     function new(string name="intel_pcie_env_stress_test", uvm_component parent=null);
         super.new(name,parent);
     endfunction
 
-    // 检查读回长度及每一个字节；失败只影响当前 case，便于其它边界继续执行。
+    // 失败只标记当前 case，其余边界继续执行。
     function automatic bit check_bytes(bit [7:0] got[], byte exp[], int n, string tag);
         bit ok = (got.size() == n);
         if (!ok) `uvm_error("STRESS_LEN", $sformatf("%s got=%0d exp=%0d",tag,got.size(),n))
@@ -22,8 +20,7 @@ class intel_pcie_env_stress_test extends intel_pcie_env_test;
     endfunction
 
     // 在指定 requester 上执行一次写后读，并检查前后各 64B 保护区未被改写。
-    // exact4k=1 时将请求放在页尾，恰好在 4KiB 边界结束；跨界请求不属于
-    // CONSTRAINT_LEGAL 的正常流量，由独立负例测试负责验证。
+    // exact4k=1 时请求恰好结束在 4KiB 边界；跨界请求不是合法流量，由负例测试另行覆盖。
     task automatic do_case(int side, int n, bit exact4k,
                            output bit passed);
         host_mem_api mem; pcie_tl_rw_seq wr,rd; bit [63:0] alloc_base,base; byte exp[], guard[]; bit ok;
@@ -35,7 +32,6 @@ class intel_pcie_env_stress_test extends intel_pcie_env_test;
         exp=new[n]; guard=new[64];
         foreach(exp[i]) exp[i]=byte'((i*37+n+side)&8'hff);
         foreach(guard[i]) guard[i]=8'he7;
-        // 主压力始终使用页内合法请求；边界专项恰好结束在下一页起点。
         if (exact4k) base = (base & ~64'hfff) + (4096 - n);
         mem.write_mem(base-64,guard); mem.write_mem(base+n,guard);
         wr=pcie_tl_rw_seq::type_id::create($sformatf("wr_%0d_%0d",side,n));
@@ -59,9 +55,8 @@ class intel_pcie_env_stress_test extends intel_pcie_env_test;
         mem.free(alloc_base);
     endtask
 
-    // 四个 worker 各执行 32 个合法页内事务；并发重叠由 sequencer/Tag 路径实测。
-    // pcie_work 的默认 MPS=256B，因此单个 rw_seq case 限制在 1..256B；
-    // 更大的 PCIe TLP 需要先由上层做 MPS 分片，不能直接塞给 rw_seq。
+    // 4 个 worker 各跑 32 个页内事务；单个 case 限 1..256B：pcie_work 默认 MPS=256B，
+    // 更大的 TLP 须由上层先做 MPS 分片，rw_seq 不负责。
     task run_phase(uvm_phase phase);
         int success_cases=0, success_bytes=0;
         int worker_cases[4] = '{0,0,0,0};
@@ -97,12 +92,11 @@ class intel_pcie_env_stress_test extends intel_pcie_env_test;
     endtask
 endclass
 
-// 最大合法包及 4KiB 边界专项保持独立，便于单独运行和定位边界问题。
+// 最大包与 4KiB 边界专项，独立出来便于单独运行定位。
 class intel_pcie_env_max_boundary_test extends intel_pcie_env_stress_test;
     `uvm_component_utils(intel_pcie_env_max_boundary_test)
-    // 构造页尾专项；沿用基类的内存所有权和 SCB 检查。
     function new(string name="intel_pcie_env_max_boundary_test", uvm_component parent=null); super.new(name,parent); endfunction
-    // 只执行两个 256B 页尾读写；请求恰好结束在 4KiB 边界，属于合法流量。
+    // 两个 256B 请求恰好结束在 4KiB 边界，仍属合法流量。
     task run_phase(uvm_phase phase);
         bit	passed0;
         bit	passed1;

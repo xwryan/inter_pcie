@@ -1,7 +1,4 @@
-// tests：真实复用 pcie_tl_env、双向 requester/responder、统一内存与 rw_seq 的集成回归。
-// 依赖 pcie_work 的外部 transport bridge 和发送前 SCB 登记；不重新实现 Tag/Completion。
-// test 拥有 env 和两侧独立 memory manager，env 只持有注入句柄并初始化；
-// 每次分配在读回完成后释放，manager 存活到整个测试结束。
+// 集成回归：真实复用 pcie_tl_env、双向 requester/responder、统一内存与 rw_seq，经 Intel 引脚收发。
 class intel_pcie_env_test extends uvm_test;
     `uvm_component_utils(intel_pcie_env_test)
 
@@ -9,13 +6,10 @@ class intel_pcie_env_test extends uvm_test;
     host_mem_manager	  host_manager;
     host_mem_manager	  device_manager;
 
-    // 标准 UVM 构造，全部上下文由 env 在 build/connect 时建立。
     function new(string name = "intel_pcie_env_test", uvm_component parent = null);
         super.new(name, parent);
     endfunction
 
-    // 业务层只配置协议角色和内存；统一入口负责当前 env 的 adapter 替换与引脚传输。
-    // Host/Device manager 必须成功注入，否则 env 在 build 时拒绝缺少后备存储的配置。
     function void build_phase(uvm_phase phase);
         pcie_tl_env_config	c;
         pcie_tl_if_adapter	unrelated_adapter;
@@ -29,8 +23,7 @@ class intel_pcie_env_test extends uvm_test;
         c.scb_enable = 1;
         c.cpl_timeout_ns = 100000;
 
-        // upstream 要求显式注入独立 Host/Device manager；只打开 use_unified_mem
-        // 不会自动创建后备存储。测试持有句柄直到所有读写结束。
+        // use_unified_mem 不会自动创建后备存储，必须显式注入独立的 Host/Device manager。
         host_manager = new("host_manager");
         device_manager = new("device_manager");
         host_manager.set_host_id(0);
@@ -41,15 +34,14 @@ class intel_pcie_env_test extends uvm_test;
         intel_pcie_configure_env(this, c);
         env = pcie_tl_env::type_id::create("env", this);
 
-        // 在 env 之外实际创建公共 adapter，确认接入入口没有把其他环境的传输层
-        // 一并替换为 Intel。若误用了全局 override，这里必须立即失败。
+        // 在 env 之外创建一个公共 adapter，确认 override 只作用于本 env 子树。
         unrelated_adapter = pcie_tl_if_adapter::type_id::create("unrelated_adapter", this);
         if (unrelated_adapter.get_object_type() != pcie_tl_if_adapter::get_type())
             `uvm_fatal("ENV_FACTORY_SCOPE", "Intel override escaped the configured env")
     endfunction
 
     // RC->EP、EP->Host 都先 WRITE 再 READ，检查真实部分字节 BE 的端到端结果。
-    // Completion 经过 opposite adapter 返回公共 driver，才能释放 Tag 并完成 rw_seq。
+    // Completion 须经对端 adapter 回到公共 driver，才能释放 Tag、结束 rw_seq。
     task run_phase(uvm_phase phase);
         pcie_tl_rw_seq	wr;
         pcie_tl_rw_seq	rd;
@@ -92,8 +84,8 @@ class intel_pcie_env_test extends uvm_test;
         phase.drop_objection(this);
     endtask
 
-    // 核对业务期望数量，防止 TX 预登记和 RX monitor 被重复计数。
-    // expected_completions=-1 适用于随机地址导致分片数变化的压力场景。
+    // 精确计数，防止 TX 预登记与 RX monitor 重复计数；
+    // expected_completions=-1 用于分片数随地址变化的压力场景。
     function void check_scb_counts(int expected_requests, int expected_matched,
                                    int expected_completions = -1);
         if (env.scb == null)

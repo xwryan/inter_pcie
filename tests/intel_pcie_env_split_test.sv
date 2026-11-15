@@ -1,18 +1,16 @@
-// tests：单 RC / 单 EP 环境经 bind 引脚互联的 SCB 回归，依赖公共 env/rw_seq。
-// 两个 env 各自拥有 SCB 和 TagManager，互相不可见对端 monitor；测试持有独立内存。
-// 该结构模拟单侧 VIP 接外部端点，覆盖发送观察回退和双向相同 Tag；不代表真实 DUT。
+// 单 RC env 与单 EP env 经引脚互联的 SCB 回归：两侧各有 SCB/TagManager 且看不到对端 monitor，
+// 覆盖发送观察回退和双向相同 Tag（模拟单侧 VIP 接外部端点，不代表真实 DUT）。
 
-// 固定 Requester ID，让双向 Tag 冲突成为确定性用例；其余构包及读回使用公共 sequence。
+// 固定 Requester ID，使双向相同 Tag 成为确定性用例。
 class intel_pcie_scb_rw_seq extends pcie_tl_rw_seq;
     `uvm_object_utils(intel_pcie_scb_rw_seq)
     bit [15:0]	requester = 16'h0100;
 
-    // sequence 只拥有本次请求；Tag 仍由各自 env 的公共 driver 分配。
     function new(string name = "intel_pcie_scb_rw_seq");
         super.new(name);
     endfunction
 
-    // finish_item 在发送前回调；随机化已完成，此时固定身份不会被再次覆盖。
+    // mid_do 在随机化之后、发送之前回调，此处固定的身份不会被覆盖。
     virtual function void mid_do(uvm_sequence_item this_item);
         pcie_tl_tlp	tlp;
         super.mid_do(this_item);
@@ -32,7 +30,6 @@ class intel_pcie_env_split_test extends uvm_test;
     intel_pcie_scb_rw_seq	reads[2];
     uvm_barrier	writes_done;
 
-    // 标准构造；组件和内存存活到测试结束，请求完成后释放分配区。
     function new(string name = "intel_pcie_env_split_test", uvm_component parent = null);
         super.new(name, parent);
     endfunction
@@ -76,7 +73,7 @@ class intel_pcie_env_split_test extends uvm_test;
     endfunction
 
     // 每侧先写 137 个非对齐字节，再同时读回；双方独立分配 Tag，Completion 均分片。
-    // 地址域刻意分离，当前公共 SCB 的数据参考表仍按地址索引，另由读回逐字节检查。
+    // 两侧地址域刻意分离：公共 SCB 的数据参考表按地址索引。
     task exercise_side(int side);
         host_mem_api	          mem;
         uvm_sequencer #(pcie_tl_tlp)	seqr;
@@ -112,7 +109,7 @@ class intel_pcie_env_split_test extends uvm_test;
     endtask
 
     // 每个 SCB 都应看到四个请求、六个 Completion，并匹配两次完整读请求。
-    // 计数精确比对可发现单侧 TX 遗漏、重复发布以及响应发出后未清账。
+    // 精确计数可发现单侧 TX 遗漏、重复发布和响应后未清账。
     function void check_scoreboard(pcie_tl_scoreboard s);
         if (s == null)
             `uvm_fatal("SPLIT_SCB", "scoreboard missing")

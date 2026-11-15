@@ -1,6 +1,5 @@
-// src：Avalon-ST 内部值类型、配置和待发送对象，由 adapter_pkg include。
-// 依赖 pcie_tl_pkg/UVM；对象按端口创建，字节数组按包私有，不跨端口共享状态。
-// 将 wire-side 与 RC/EP 分开：一个 RC 用户 DUT 也需要 HARD_IP 方向的对端 BFM。
+// R-Tile Avalon-ST adapter 的值类型、端口配置与包对象。
+// side 描述接口方向而非 RC/EP 角色：RC 用户 DUT 也需要 HARD_IP 方向的对端 BFM。
 typedef enum {INTEL_PCIE_AUTO, INTEL_PCIE_APPLICATION, INTEL_PCIE_HARD_IP}
     intel_pcie_side_e;
 typedef bit [7:0] intel_pcie_bytes_t[$];
@@ -24,7 +23,7 @@ typedef struct packed {
     logic [11:0] dcnt;
 } intel_pcie_credit_pins_t;
 
-// 显式配置取代全局 plusarg，允许不同端口有独立方向、缓冲量和压力策略。
+// 每端口独立的方向、缓冲量和压力策略（不用全局 plusarg）。
 class intel_pcie_adapter_config extends uvm_object;
     `uvm_object_utils(intel_pcie_adapter_config)
 
@@ -32,6 +31,7 @@ class intel_pcie_adapter_config extends uvm_object;
     bit header_big_endian = `INTEL_PCIE_HEADER_BIG_ENDIAN;
     bit check_parity = 0;
     bit credit_enable = 1;
+    // 下标为 P/NP/CPL；容量单位为 header 个数 / 16 B data credit。
     int unsigned header_capacity[3] = '{16,16,16};
     int unsigned data_capacity[3] = '{512,512,512};
     bit infinite_header[3] = '{0,0,0};
@@ -41,12 +41,10 @@ class intel_pcie_adapter_config extends uvm_object;
     int unsigned rx_start_segment = 0;
     bit x16_single_width = 0;
 
-    // 创建每端口配置；数组初始值以 header 个数/16-byte data credits 表达。
     function new(string name = "intel_pcie_adapter_config");
         super.new(name);
     endfunction
 
-    // 配置错误在发流前失败，避免把不支持的宽度或无限制等待伪装成正常运行。
     function void validate();
         if (!((INTEL_DATA_WIDTH == 256 && INTEL_SEGMENTS inside {1,2,4}) ||
               (INTEL_DATA_WIDTH == 128 && INTEL_SEGMENTS inside {1,2})))
@@ -55,8 +53,7 @@ class intel_pcie_adapter_config extends uvm_object;
             `uvm_fatal("RTILE_CONFIG", "tx_stop_latency must be 1..16")
         if (rx_start_segment >= INTEL_SEGMENTS)
             `uvm_fatal("RTILE_CONFIG", "rx_start_segment exceeds port width")
-        // 本 BFM 在新拍独立起包，没有为 st2/st3 自动填充前序包；量产器件不能
-        // 在 st0/st1 同时空闲时只使用后两段。重组器仍支持合法的 st2/st3 起包。
+        // 量产器件不会在 st0/st1 都空闲时只用 st2/st3 起包；重组器仍接受合法的 st2/st3 起包。
         if (INTEL_SEGMENTS == 4 && rx_start_segment >= 2)
             `uvm_fatal("RTILE_CONFIG", "standalone RX start must use st0/st1 on production devices")
         if (x16_single_width && !(INTEL_SEGMENTS == 2 && INTEL_DATA_WIDTH == 256))
@@ -70,8 +67,8 @@ class intel_pcie_adapter_config extends uvm_object;
     endfunction
 endclass
 
-// wire packet 保留完整 11-bit VF 信息，避免强塞进公共模型的 8-bit target_func。
-// 编码快照隔离调用者后续修改；completed/aborted 唤醒拥有该 packet 的 send()。
+// 线上包快照（隔离调用者后续修改），保留完整 11-bit VF 号（公共模型 target_func 仅 8 bit）；
+// completed/aborted 用于唤醒等待它的 send()。
 class intel_pcie_packet extends uvm_object;
     `uvm_object_utils(intel_pcie_packet)
     bit [127:0] header;
@@ -85,12 +82,11 @@ class intel_pcie_packet extends uvm_object;
     bit [10:0] vfnum;
     bit completed, aborted;
 
-    // packet 由 send() 或 RX 重组器新建，完成/复位只唤醒自己的等待调用。
     function new(string name = "intel_pcie_packet");
         super.new(name);
     endfunction
 
-    // 返回包所需的 PCIe data credits；无数据包只消耗一个 header credit。
+    // 每 16 B 一个 data credit；无数据包只占 header credit。
     function int data_credits();
         return (expected_bytes + 15) / 16;
     endfunction

@@ -1,20 +1,12 @@
-// =============================================================================
-// 文件: tests/bind/tb_intel_pcie_bind_smoke.sv
-// 职责: 提供两个使用 wire 用户侧引脚的 bind 目标，验证 HARD_IP/APPLICATION 的
-//       所有权映射、time-0 config_db 发布以及 packed segment 连接。
-// 依赖: intel_pcie_bind_wrapper_inout、intel_pcie_adapter_pkg、UVM。
-// 生命周期: 测试模块独立产生时钟/复位并在 smoke 断言后结束；不创建 pcie_tl_env。
-// =============================================================================
+// bind wrapper 冒烟测试：用两个 wire 引脚目标验证 HARD_IP/APPLICATION 的驱动权映射、
+// time-0 config_db 发布与 packed segment 连接；不创建 env/adapter。
 `timescale 1ns/1ps
 `include "intel_pcie_params.svh"
 
-// 验证模块只检查 bind wrapper 的 config_db 发布和网络方向，不创建 adapter。
 import intel_pcie_adapter_pkg::*;
 import uvm_pkg::*;
 
 // HARD_IP 目标：DUT 驱动 TX/RX-credit，wrapper 应接管 RX、TX-ready 和 TX-credit。
-// 目标引脚全部声明为 wire；DUT 输出侧使用连续赋值，inout wrapper 的
-// SIDE 参数决定哪一组网络由 VIP 驱动。
 module intel_pcie_bind_target_hard;
   localparam int DATA_WIDTH = `INTEL_PCIE_DATA_WIDTH;
   localparam int SEGMENTS = `INTEL_PCIE_SEGMENTS;
@@ -69,7 +61,7 @@ module intel_pcie_bind_target_hard;
   wire [2:0] tx_dcrdt_update;
   wire [11:0] tx_dcrdt_update_cnt;
 
-  // 这些是 DUT 的输出网络，wire 允许与参数化 inout wrapper 解析连接。
+  // DUT 输出网络（wire 才能与 inout wrapper 解析连接）。
   assign tx_data = 'h1; assign tx_hdr = 'h1; assign tx_prefix = 'h1;
   assign tx_sop = 'h1; assign tx_eop = 'h1; assign tx_dvalid = 'h1;
   assign tx_hvalid = 'h1; assign tx_pvalid = 'h1; assign tx_data_par = 'h1;
@@ -78,8 +70,7 @@ module intel_pcie_bind_target_hard;
   assign rx_hcrdt_update_cnt = 'h1; assign rx_dcrdt_init = 'h1;
   assign rx_dcrdt_update = 'h1; assign rx_dcrdt_update_cnt = 'h1;
   assign tx_hcrdt_init_ack = 'h1; assign tx_dcrdt_init_ack = 'h1;
-  // #0 等待 wrapper 完成同步发布；检查扁平 cfg 句柄与旧名称参数兼容，
-  // 再等待一拍使连续赋值稳定后检查网络方向。
+  // #0 等 wrapper 发布 cfg（并检查旧名称参数兼容），再等一拍让连续赋值稳定后检查网络方向。
   initial begin
     intel_pcie_vif_t got_vif;
     intel_pcie_adapter_config got_cfg;
@@ -167,7 +158,6 @@ module intel_pcie_bind_target_application;
   wire [2:0] tx_dcrdt_update;
   wire [11:0] tx_dcrdt_update_cnt;
 
-  // APPLICATION DUT 输出 RX/tx_ready/TX-credit，均为 wire 网络驱动。
   assign rx_data = 'h0; assign rx_hdr = 'h0; assign rx_prefix = 'h0;
   assign rx_sop = 'h0; assign rx_eop = 'h0; assign rx_dvalid = 'h0;
   assign rx_hvalid = 'h0; assign rx_pvalid = 'h0; assign rx_empty = 'h0;
@@ -210,7 +200,7 @@ bind intel_pcie_bind_target_application intel_pcie_bind_wrapper_inout #(
   .SIDE("APPLICATION")
 ) u_bind (.*);
 
-// 顶层只负责拉起两个独立目标并结束仿真；不会调用 run_test，避免与 bind wrapper 生命周期耦合。
+// 不调用 run_test，避免与 bind wrapper 的发布时序耦合。
 module tb_intel_pcie_bind_smoke;
   import uvm_pkg::*;
   logic clk = 0;

@@ -1,7 +1,6 @@
-// src/adapter：R-Tile AVST 六类信用的初始化、预留和归还；由 adapter_pkg include。
-// 依赖 config/packet 类型。每端口独占实例，同时拥有本端缓冲计数和对端信用镜像。
-// 不复用 pcie_work 的 DWORD 数据计数器：硬核接口每个 Data credit 为 16 B，
-// 两者不能直接相加。上游 FC 设为 infinite，有限信用完全由本类处理。
+// R-Tile AVST 六类信用（P/NP/CPL × header/data）的初始化、预留与归还，每端口一个实例。
+// 硬核每个 data credit 为 16 B，不能复用 pcie_work 的 DW 计数器；上游 FC 设为 infinite，有限信用全由本类处理。
+// 使用前须由 adapter 赋 cfg 并调用 reset()。
 class intel_pcie_credit_manager extends uvm_object;
     `uvm_object_utils(intel_pcie_credit_manager)
 
@@ -17,12 +16,11 @@ class intel_pcie_credit_manager extends uvm_object;
     init_state_e state;
     bit local_initialized;
 
-    // 构造后必须由 adapter 赋 cfg 并调用 reset，避免共享配置的隐式初始状态。
     function new(string name = "intel_pcie_credit_manager");
         super.new(name);
     endfunction
 
-    // 复位销毁全部在途信用；与 adapter 丢弃半包/队列同步，不能复用上个 epoch。
+    // 丢弃全部在途信用（与 adapter 丢弃半包/队列同步），不沿用上个 epoch。
     function void reset();
         state = WAIT_ACK;
         local_initialized = 0;
@@ -41,8 +39,7 @@ class intel_pcie_credit_manager extends uvm_object;
         end
     endfunction
 
-    // 采样对端 sink 的 credit 接口。只在 init 阶段的 update=1/cnt=0 表示无限；
-    // 正常运行的零增量不是无限。六类可独立初始化，不把一次更新当累计总量。
+    // 仅 init 期间 update=1/cnt=0 表示无限（运行期零增量不是）；update 为增量，六类独立初始化。
     function void sample_remote(intel_pcie_credit_pins_t p);
         if (!cfg.credit_enable) return;
         if ($isunknown({p.hinit,p.dinit,p.hupdate,p.dupdate})) begin
@@ -75,8 +72,7 @@ class intel_pcie_credit_manager extends uvm_object;
         previous_dinit = p.dinit;
     endfunction
 
-    // 输出本端 sink 的初始化或回收增量。所有计数按接口宽度拆成 <=3/<=15，
-    // 最后一拍 update 与 init 撤销之间保持两个完整空拍（UG §4.3.1.2.2）。
+    // 增量按接口宽度拆成 <=3（header）/<=15（data）；最后一拍 update 与撤销 init 之间留两个空拍（UG §4.3.1.2.2）。
     function intel_pcie_credit_pins_t drive_local(logic [2:0] hack, dack);
         intel_pcie_credit_pins_t p = '0;
         bit all_sent;

@@ -1,5 +1,4 @@
-# tests/aip：真实 Tcl bridge 的宽寄存器访问；需 +AIP_TCL 和默认低地址 fixture。
-# 脚本持有独立十六进制期望值，不使用 SV sequence 输出构造期望。
+# 经真实 Tcl bridge 的宽寄存器访问检查（需 +AIP_TCL）；期望值为脚本内独立的十六进制常量。
 source $::env(AIP_CORE_ROOT)/src/tcl/aip_cmd.tcl
 set checks 0
 proc check_reg {condition text} {

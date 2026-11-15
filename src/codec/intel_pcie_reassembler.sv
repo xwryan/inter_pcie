@@ -1,5 +1,4 @@
-// src/codec：逐拍按 segment 顺序重组；纯函数状态机便于用手工波形独立验证。
-// 依赖 AVST codec/config/beat；拥有一个半包，完整 packet 所有权交给 adapter。
+// 逐拍按 segment 顺序重组 AVST 包，最多持有一个半包；不依赖接口，便于用手工波形单独验证。
 // RX 可有 dvalid 空拍，TX 仅在反压时可停顿；empty 只对 RX EOP 数据段有意义。
 class intel_pcie_reassembler extends uvm_object;
     `uvm_object_utils(intel_pcie_reassembler)
@@ -7,18 +6,16 @@ class intel_pcie_reassembler extends uvm_object;
     intel_pcie_adapter_config cfg;
     intel_pcie_packet active;
 
-    // 由 adapter 创建并注入 codec/cfg，避免复制公共 TLP 字段解释。
     function new(string name = "intel_pcie_reassembler");
         super.new(name);
     endfunction
 
-    // 复位丢弃半包，后续第一个有效数据段必须重新携带 SOP/Header。
+    // 丢弃半包；之后的第一个有效段必须重新带 SOP/Header。
     function void reset();
         active = null;
     endfunction
 
-    // 完整拍进、started/done 队列出；无效 segment 的 SOP/EOP 噪声不被解释。
-    // 错误通过 UVM_ERROR 报告，不把截断包伪装成成功 TLP。
+    // 无效 segment 上的 SOP/EOP 不解释；截断包报 UVM_ERROR 并丢弃，不当作成功 TLP。
     function void consume(intel_pcie_beat_t beat, bit tx_side, bit ready,
                          output intel_pcie_packet started[$],
                          output intel_pcie_packet done[$]);
@@ -53,8 +50,7 @@ class intel_pcie_reassembler extends uvm_object;
                     `uvm_error("RTILE_HEADER", "SOP requires hvalid")
                     continue;
                 end
-                // 公共TLP与packet为2-state，转换前检查实际有效的Header/Prefix，
-                // 否则X会变成0并制造看似成功的TLP。3DW未使用的第四DWORD不检查。
+                // packet/TLP 是 2-state，须先查 X，否则 X 变 0 会造出看似成功的 TLP。
                 if (!known_header(beat,s)) begin
                     `uvm_error("RTILE_CONTENT_X", "unknown valid Header or Prefix")
                     active = null;
@@ -62,8 +58,7 @@ class intel_pcie_reassembler extends uvm_object;
                 end
                 if (tx_side && INTEL_SEGMENTS == 4 && (s % 2) != 0)
                     `uvm_error("RTILE_TX_START", "x16 double-width SOP only allowed on st0/st2")
-                // later SOP依赖当前段前一段；使用s-1而非常量st1，单段配置中
-                // 也不会静态引用不存在的段。s=2时允许前包在st0结束、st1空闲。
+                // 用 s-1 而非常量 st1，单段配置下不会静态越界；s=2 时允许前包在 st0 结束、st1 空闲。
                 if (tx_side && s != 0 &&
                     !(beat.dvalid[0] && (beat.eop[s-1] ||
                       (s == 2 && beat.eop[0] && !beat.dvalid[s-1]))))
@@ -127,8 +122,8 @@ class intel_pcie_reassembler extends uvm_object;
             `uvm_error("RTILE_TX_START", "x16 single-width permits one SOP per cycle")
     endfunction
 
-    // 仅检查TLP真正占用的3/4个Header DWORD和有效Prefix；保留don't-care语义。
-    // 必须直接读4-state beat，不能先调用返回bit类型的codec.header_dw再查X。
+    // 只查实际占用的 3/4 个 Header DW 与有效 Prefix，其余为 don't-care；
+    // 必须直接读 4-state beat：codec.header_dw 返回 bit，会吞掉 X。
     function bit known_header(intel_pcie_beat_t b, int s);
         logic [31:0] dw0, dw;
         int count;

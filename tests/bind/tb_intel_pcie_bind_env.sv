@@ -1,8 +1,5 @@
-// tests/bind：完整 pcie_tl_env 的引脚绑定回归，依赖产品 wrapper 与现有 env 测试。
-// fixture 仅拥有解析型网络、时钟和复位；两个 wrapper 分别承担 HARD_IP/APPLICATION，
-// 默认顶层的 adapter 来自同一 env，split 顶层分别来自两个单侧 env。
-// 业务数据只能经过 wrapper/net，不能直接共享 vif。
-// 与真实 DUT 集成时由 DUT 替换其中一端；本 fixture 不代表 Quartus 硬核模型。
+// 完整 pcie_tl_env 经两个 bind wrapper（HARD_IP/APPLICATION）引脚互联的回归，数据只经 wrapper/net。
+// 默认顶层两端来自同一 env，split 顶层来自两个单侧 env；接真实 DUT 时由 DUT 替换一端。
 `include "intel_pcie_params.svh"
 
 // 两个独立 interface 通过下列网络连接，验证分段数据、credit/ACK 的双向映射。
@@ -81,7 +78,7 @@ bind intel_pcie_bind_env_link intel_pcie_bind_wrapper_inout #(
   .SIDE("APPLICATION")
 ) application_bind (.*);
 
-// 顶层等待 time-0 发布完成后直接调整 cfg，再交给现有 env 测试创建组件和运行流量。
+// time-0 发布完成后调整 cfg，再由现有 env 测试创建组件并运行流量。
 module tb_intel_pcie_bind_env;
   timeunit 1ns;
   timeprecision 1ps;
@@ -97,7 +94,7 @@ module tb_intel_pcie_bind_env;
     run_test();
   end
 
-  // 必须以失败结束死锁；不能仅因编译或 UVM 构建完成就报告绑定成功。
+  // 死锁必须以失败结束，不能因构建完成就算绑定成功。
   initial begin
     #1ms;
     $fatal(1, "bind env watchdog expired");

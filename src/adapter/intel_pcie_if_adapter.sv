@@ -1,8 +1,5 @@
-// src/adapter：pcie_tl_if_adapter 的 R-Tile 传输实现，依赖本包 codec/credit/reassembler。
-// 一个实例对应一个端口；HARD_IP 驱 RX/收 TX，APPLICATION 驱 TX/收 RX。
-// 上层复用 pcie_work 的 TLP/agent/sequence，接口方向独立于 PCIe RC/EP 协议角色。
-// 队列、半包和信用均由实例独占；send 保存编码快照，直到 EOP 采样或复位才返回。
-// Driver 以整拍组织段并在下降沿驱动；monitor_cb 上升沿前采样，不套用 ready&&valid。
+// pcie_tl_if_adapter 的 R-Tile Avalon-ST 实现，每端口一个实例：HARD_IP 驱 RX/收 TX，APPLICATION 驱 TX/收 RX。
+// 接口方向与 PCIe RC/EP 角色无关；下降沿驱动整拍，monitor_cb 在上升沿前采样，不套用 ready&&valid 握手。
 class intel_pcie_if_adapter extends pcie_tl_if_adapter;
     `uvm_component_utils(intel_pcie_if_adapter)
 
@@ -22,13 +19,11 @@ class intel_pcie_if_adapter extends pcie_tl_if_adapter;
     longint unsigned sent_packets, received_packets, reset_epochs;
     bit hard_ip_ready = 1;
 
-    // 构造只建立 UVM 归属；配置和 virtual interface 在 build_phase 绑定。
     function new(string name = "intel_pcie_if_adapter", uvm_component parent = null);
         super.new(name, parent);
     endfunction
 
-    // Intel adapter 使用专用 Avalon-ST virtual interface；不能让公共 env
-    // 通过基类 pcie_tl_if_adapter.vif 判断，否则即使 bind 成功也会误报。
+    // 使用专用 Avalon-ST vif：公共 env 若按基类 vif 判断，bind 成功也会误报未绑定。
     virtual function bit native_vif_required();
         return 1'b1;
     endfunction
@@ -37,8 +32,8 @@ class intel_pcie_if_adapter extends pcie_tl_if_adapter;
         return (avst_vif != null);
     endfunction
 
-    // 工厂覆盖与 Xilinx adapter 一致。默认 rc_adapter* 模拟硬核，ep_adapter*
-    // 模拟应用；接真实 RP 用户 DUT 时必须通过 intel_cfg.side 显式指定方向。
+    // side=AUTO 时按实例名推断：rc_adapter* 模拟硬核，ep_adapter* 模拟应用；
+    // 接真实 RP 用户 DUT 时必须显式设置 intel_cfg.side。
     function void build_phase(uvm_phase phase);
         string nm;
         super.build_phase(phase);
@@ -66,16 +61,16 @@ class intel_pcie_if_adapter extends pcie_tl_if_adapter;
         rx_packet_ap = new("rx_packet_ap", this);
     endfunction
 
-    // 公共 FC 以 DWORD 计数且可能在 RC/EP 之间共享，必须显式关闭其有限门控。
-    // 本地 AVST credit_enable 仍默认开启，二者互不替代；不静默改写上游 manager。
+    // 公共 FC 按 DW 计数且可能被 RC/EP 共享，必须由用户设为 infinite（不静默改写）；
+    // 有限信用由本地 AVST credit 负责。
     function void start_of_simulation_phase(uvm_phase phase);
         super.start_of_simulation_phase(phase);
         if (fc_mgr != null && fc_mgr.fc_enable && !fc_mgr.infinite_credit)
             `uvm_fatal("RTILE_FC_CONFIG", "set pcie_tl_env_config.infinite_credit=1; adapter owns finite AVST credits")
     endfunction
 
-    // 串行时钟线程拥有全部 pins，防止 send/monitor/reset 各自修改引脚产生竞争。
-    // 每拍已推出的 valid 都被消费；TX ready 低的允许延迟窗口内不保持旧拍重发。
+    // 只有本线程写引脚，避免 send/monitor/reset 竞争；已推出的 valid 拍都算被消费，
+    // TX ready 拉低后的允许窗口内不重发旧拍。
     task run_phase(uvm_phase phase);
         reset_state();
         drive_reset();
@@ -95,15 +90,14 @@ class intel_pcie_if_adapter extends pcie_tl_if_adapter;
         end
     endtask
 
-    // 保留公共 send 签名；完成表示本地 EOP 已经采样，尚不代表 PCIe 对端完成响应。
+    // 返回只表示本地 EOP 已被采样，不代表对端已响应。
     virtual task send(pcie_tl_tlp tlp);
         pcie_tl_tlp batch[$];
         batch.push_back(tlp);
         send_batch(batch);
     endtask
 
-    // 可选批量入口把多个包先入队，允许在 st0/st2 同拍起包；正常 sequence 仍用 send。
-    // 所有编码先完成再入队，任一不支持的包都不会留下半个已提交 batch。
+    // 批量入队以便 st0/st2 同拍起包；先全部编码再入队，任一包不支持则整批不提交。
     task send_batch(pcie_tl_tlp tlps[$]);
         intel_pcie_packet packets[$];
         intel_pcie_packet p;
@@ -121,7 +115,7 @@ class intel_pcie_if_adapter extends pcie_tl_if_adapter;
         end
     endtask
 
-    // 非阻塞队列出队复用公共 monitor 契约；空间在此刻释放，不在 EOP 提前归还。
+    // 非阻塞；接收信用在出队时才释放，而不是在 EOP。
     virtual task receive(output pcie_tl_tlp tlp);
         intel_pcie_packet p;
         tlp = null;
@@ -131,15 +125,15 @@ class intel_pcie_if_adapter extends pcie_tl_if_adapter;
         credits.release_local(p);
     endtask
 
-    // 硬核侧压力测试入口，仅改变下个下降沿驱动的 TX ready，应用侧禁止调用。
+    // 压力测试用：从下一个下降沿起改变 TX ready，仅 HARD_IP 侧可用。
     function void set_tx_ready(bit value);
         if (cfg.side != INTEL_PCIE_HARD_IP)
             `uvm_error("RTILE_DIRECTION", "only HARD_IP owns tx_ready")
         else hard_ip_ready = value;
     endfunction
 
-    // 重置当前 epoch：解除 send 等待，丢弃接收半包/完整队列，重新初始化信用。
-    // sent/received 统计跨复位累计，便于检查没有旧包重放；TX ready 策略由测试保留。
+    // 进入新 epoch：中止在途 send，丢弃半包与队列并重置信用；
+    // sent/received 统计跨复位累计，用于检查旧包没有重放。
     protected function void reset_state();
         foreach (tx_queue[i]) tx_queue[i].aborted = 1;
         foreach (beat_done[i]) beat_done[i].aborted = 1;
@@ -151,7 +145,7 @@ class intel_pcie_if_adapter extends pcie_tl_if_adapter;
         credits.reset(); reassembler.reset(); reset_epochs++;
     endfunction
 
-    // 采样控制、接收包与已发 EOP。双方对每拍 valid 的解释完全相同，避免重发/丢拍。
+    // 收发双方对每拍 valid 的解释必须一致，避免重发或丢拍。
     protected function void sample_cycle();
         intel_pcie_credit_pins_t remote;
         intel_pcie_beat_t incoming;
@@ -192,7 +186,7 @@ class intel_pcie_if_adapter extends pcie_tl_if_adapter;
         beat_done.delete();
     endfunction
 
-    // 从一个采样快照读取 credit pins；tx=1 为硬核公布给 TX source 的计数。
+    // tx=1：硬核公布给 TX source 的信用。
     protected function intel_pcie_credit_pins_t sample_credit_pins(bit tx);
         intel_pcie_credit_pins_t p;
         if (tx) begin
@@ -240,7 +234,7 @@ class intel_pcie_if_adapter extends pcie_tl_if_adapter;
         return b;
     endfunction
 
-    // 下降沿统一驱动当前 side 的数据、ready 与信用。ACK 只响应远端发起的 init。
+    // ACK 只回应远端发起的 init。
     protected function void drive_cycle();
         intel_pcie_credit_pins_t p;
         intel_pcie_beat_t b;
@@ -282,8 +276,7 @@ class intel_pcie_if_adapter extends pcie_tl_if_adapter;
                 if ((!tx && starts >= 3) || (tx && cfg.x16_single_width && starts >= 1)) break;
                 next_pkt = tx_queue[0];
                 if (!credits.can_send(next_pkt)) break;
-                // UG §4.3.1.2.4：硬核到用户的 RX data credits 低于32时停止起包。
-                // 已经预留的半包仍继续；此门槛不能套用到应用发送 TX 的对端信用。
+                // UG §4.3.1.2.4：RX data credit 低于 32 时硬核不再起新包（已开始的包继续）；不适用于 TX。
                 if (!tx && cfg.credit_enable && !credits.dinfinite[next_pkt.category] &&
                     credits.davailable[next_pkt.category] < 32) break;
                 // 表58/59列出的后继起包均为有数据包；纯 Header 包只从新拍开始。
@@ -327,7 +320,7 @@ class intel_pcie_if_adapter extends pcie_tl_if_adapter;
         return b;
     endfunction
 
-    // 唯一的数据引脚写入口；按 side 选择，不能同时驱动接收方向以制造自回环。
+    // 只驱动本 side 的发送方向，不能同时驱动接收方向而形成自回环。
     protected function void drive_beat(intel_pcie_beat_t b);
         if (cfg.side == INTEL_PCIE_APPLICATION) begin
             avst_vif.tx_data = b.data; avst_vif.tx_hdr = b.hdr; avst_vif.tx_prefix = b.prefix;

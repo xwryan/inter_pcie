@@ -1,20 +1,19 @@
-// tests：手工构造图31与非连续 valid 波形，独立于产品发送打包器。
-// reassembler 由测试独占；检查 Header-only、同拍三包、完整 11-bit VF 和非法帧。
+// 手工构造图 31 与非连续 valid 波形单独验证重组器（不经产品发送打包器）：
+// Header-only、同拍三包、完整 11-bit VF 和非法帧。
 class intel_pcie_reassembly_test extends uvm_test;
     `uvm_component_utils(intel_pcie_reassembly_test)
 
-    // 标准 UVM 构造，状态在 run_phase 内创建并销毁。
     function new(string name = "intel_pcie_reassembly_test", uvm_component parent = null);
         super.new(name,parent);
     endfunction
 
-    // 使用递增原始字节填满一个 segment，方便独立核对跨段/跨拍拼接顺序。
+    // 递增字节填满 segment，便于核对跨段/跨拍的拼接顺序。
     function void fill_data(ref intel_pcie_beat_t b, input int s, input int offset);
         for (int i = 0; i < INTEL_DATA_BYTES; i++) b.data[s][i*8 +: 8] = 8'(offset+i);
         b.dvalid[s] = 1;
     endfunction
 
-    // 断言完整 packet 字节数量和顺序，避免仅检查包数而漏掉数据重复/丢失。
+    // 逐字节检查，避免只数包而漏掉数据重复/丢失。
     function void check_payload(intel_pcie_packet p, int count);
         if (p.payload.size() != count) `uvm_fatal("FIG31", "unexpected Payload length")
         foreach (p.payload[i])
@@ -30,8 +29,7 @@ class intel_pcie_reassembly_test extends uvm_test;
         intel_pcie_beat_t b;
         intel_expected_error errors;
         pcie_tl_tlp t;
-        // 类会随整个tests package在小几何配置中注册，但本场景只在4x256运行。
-        // 使用运行期索引避免对已经由下方geometry检查排除的fixture静态报越界。
+        // 本类在小几何配置下也会编译：用运行期索引，避免对 st1~st3 静态报越界。
         int st1=1, st2=2, st3=3;
 
         phase.raise_objection(this);
@@ -96,8 +94,7 @@ class intel_pcie_reassembly_test extends uvm_test;
         if (errors.count!=1 || done.size()!=0) `uvm_fatal("NEGATIVE", "early EOP accepted")
         uvm_report_cb::delete(null,errors);
 
-        // 总线X不能被packet的2-state字段静默吞掉；3DW未用DWORD和末段padding
-        // 则允许don't-care。这个独立raw-pin例子不依赖发送器默认填零的行为。
+        // 有效字段上的 X 不能被 2-state packet 吞掉；3DW 未用的 DW 与末段 padding 允许 don't-care。
         errors=new; errors.expected_id="RTILE_CONTENT_X";
         uvm_report_cb::add(null,errors);
         b='0; b.sop[0]=1; b.hvalid[0]=1; b.eop[0]=1;

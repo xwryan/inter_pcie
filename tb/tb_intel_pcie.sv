@@ -1,5 +1,4 @@
-// tb：四段单端口回归顶层，依赖 UVM、接口、测试 package；只拥有时钟和初始复位。
-// 两个 adapter 连接同一真实信号总线；没有 data 的 assign 回环，收发必须经过引脚。
+// 单端口回归顶层：两个 adapter 接同一条真实信号总线，没有 assign 回环，收发都经过引脚。
 module tb_intel_pcie;
     timeunit 1ns;
     timeprecision 1ps;

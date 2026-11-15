@@ -1,9 +1,8 @@
-// tests：反复拉低/恢复TX ready，验证多次“对端未准备好”不会重复Header或Payload。
-// 依赖pair_test，HIP侧独占ready；独立raw-pin计数器逐字节验证，不通过codec自证时序。
+// 反复拉低/恢复 TX ready，验证多次“对端未准备好”不会重复 Header 或 Payload；
+// 用独立的 raw-pin 计数器逐字节验证，不靠 codec 自证时序。
 class intel_pcie_ready_toggle_test extends intel_pcie_pair_test;
     `uvm_component_utils(intel_pcie_ready_toggle_test)
 
-    // 两侧BFM由基类创建；本类仅提供有界的压力序列和观测状态。
     function new(string name="intel_pcie_ready_toggle_test", uvm_component parent=null);
         super.new(name,parent);
     endfunction

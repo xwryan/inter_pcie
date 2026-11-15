@@ -1,6 +1,5 @@
-// src/adapter：唯一 UVM 编译入口；interface 必须在本 package 之前编译。
-// 依赖外部 pcie_work/pcie_tl_pkg 和 UVM，不复制其 agent、sequence 或 TLP 类。
-// 常量共享，所有运行状态由 adapter 实例拥有；支持同一几何配置下多独立端口。
+// Intel R-Tile adapter 的唯一 UVM 编译入口，复用 pcie_tl_pkg 的 agent/sequence/TLP；
+// intel_pcie_if 必须先于本 package 编译。
 `include "intel_pcie_params.svh"
 package intel_pcie_adapter_pkg;
     import uvm_pkg::*;

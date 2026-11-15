@@ -1,12 +1,7 @@
-// src/adapter：pcie_tl_env 的 Intel 用户接口接入入口，由 intel_pcie_adapter_pkg include。
-// 依赖 UVM、pcie_tl_env_config 和 intel_pcie_if_adapter；不创建 env/agent 或内存。
-// 调用者拥有 cfg，config_db 和后续 env 借用同一对象；必须在创建 env 前调用。
-// 把引脚传输所需的固定配置放在一处，避免漏开 bridge 后误走公共 TLM 回环。
+// 把 pcie_tl_env 接到 Intel 用户接口所需的固定配置集中在此，避免漏开 bridge 而误走公共 TLM 回环。
 
-// 配置 parent 下的 env_name；parent=null 时 env_name 为完整 UVM 路径。
-// cfg 不能为空，env_name 不能为空且应指向一个确定的 env，不能使用通配路径。
-// 仅替换该 env 子树内的 adapter，并发布 cfg/bridge；不选择 RC/EP、内存或 scoreboard。
-// 公共 FC 使用无限信用，本地 AVST credit_enable 仍由各端口 intel_cfg 独立控制。
+// 须在创建 env 前调用；parent=null 时 env_name 为完整 UVM 路径（不能含通配符）。
+// 只替换该 env 子树内的 adapter 并发布 cfg/bridge；公共 FC 设为无限信用，有限信用由各端口 intel_cfg 控制。
 function automatic void intel_pcie_configure_env(
     input uvm_component parent,
     input pcie_tl_env_config cfg,

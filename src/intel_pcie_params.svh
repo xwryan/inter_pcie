@@ -1,9 +1,4 @@
-// =============================================================================
-// 文件: src/intel_pcie_params.svh
-// 职责: Intel R-Tile Avalon-ST 适配层的编译期参数。
-// 依赖: 无；由 filelist 在 pcie_work 的 package 之前包含。
-// 生命周期: 仅在编译期展开，不产生仿真对象。
-// =============================================================================
+// Intel R-Tile Avalon-ST 适配层的编译期参数，均可用 +define+ 覆盖。
 
 `ifndef INTEL_PCIE_PARAMS_SVH
 `define INTEL_PCIE_PARAMS_SVH

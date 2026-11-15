@@ -1,7 +1,5 @@
-// src/interface：R-Tile 单端口引脚契约，依赖 intel_pcie_params.svh。
-// 本 interface 无主动 driver；应用 adapter 拥有 TX、RX ready/RX credit，
-// 硬核 adapter 或实际 DUT 拥有 RX、TX ready/TX credit。每根信号只有一个所有者。
-// 数组索引 N 对应手册 pX_*_stN_*，一个实例对应一个 pX，数组不代表多端口。
+// R-Tile 单端口 Avalon-ST 引脚接口：一个实例对应手册中的一个 pX，下标 N 对应 pX_*_stN_*。
+// 每根信号只有一个驱动方：应用侧驱 TX、RX ready/RX credit；硬核侧（adapter 或真实 DUT）驱 RX、TX ready/TX credit。
 `include "intel_pcie_params.svh"
 
 interface intel_pcie_if #(
@@ -9,7 +7,7 @@ interface intel_pcie_if #(
     parameter int SEGMENTS = `INTEL_PCIE_SEGMENTS
 )(input logic clk, input logic rst_n);
 
-    // Packed 数组便于一次驱动整拍，低索引段在 PCIe 流中先出现。
+    // 低索引段在 PCIe 流中先出现。
     logic [SEGMENTS-1:0][DATA_WIDTH-1:0] rx_data, tx_data;
     logic [SEGMENTS-1:0][127:0] rx_hdr, tx_hdr;
     logic [SEGMENTS-1:0][31:0] rx_prefix, tx_prefix;

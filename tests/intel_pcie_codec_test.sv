@@ -1,14 +1,12 @@
-// tests：用手算 PCIe Header 常量验证字节序，再覆盖公共 TLP 类型的往返。
-// 依赖测试 helper/产品 codec；不创建 adapter、不依赖 ready 或仿真硬核。
+// 用手算的 Header 常量验证 AVST 字节序，并做公共 TLP 类型的编解码往返（不创建 adapter）。
 class intel_pcie_codec_test extends uvm_test;
     `uvm_component_utils(intel_pcie_codec_test)
 
-    // 标准 UVM 注册构造，不保存跨测试状态。
     function new(string name = "intel_pcie_codec_test", uvm_component parent = null);
         super.new(name,parent);
     endfunction
 
-    // 分别断言手算 DWORD 位置；typed Completion/Config/Prefix 使用公共 codec 交叉核对。
+    // Completion/Config/Prefix 另用公共 codec 交叉核对。
     task run_phase(uvm_phase phase);
         intel_pcie_avst_codec c = new("codec");
         intel_pcie_packet p;

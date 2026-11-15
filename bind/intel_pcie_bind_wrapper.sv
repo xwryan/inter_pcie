@@ -1,25 +1,13 @@
-// =============================================================================
-// 文件: bind/intel_pcie_bind_wrapper.sv
-// 职责: 提供参数化 inout 端口的 Intel R-Tile 用户侧 bind wrapper，并把接口和
-//       intel_pcie_adapter_config 发布到 pcie_work 的 adapter 实例路径。
-// 依赖: intel_pcie_params.svh、intel_pcie_if、intel_pcie_adapter_pkg、UVM。
-// 所有权: wrapper 只拥有 interface 和配置对象；adapter 仍由 pcie_tl_env
-//         factory 创建。wrapper 不创建第二个 adapter，避免重复 driver/credit。
-// 生命周期: interface/config 在 time-0 创建并持续到仿真结束；顶层应在 #0 后
-//           调用唯一的 run_test()，使 config_db 在 UVM build_phase 前可见。
-// 说明: 唯一入口 intel_pcie_bind_wrapper_inout 直接暴露 cfg/u_intel_pcie_if；
-//       DUT 用户侧端口必须是 wire/tri net，SIDE 在 elaboration 时确定方向。
-// =============================================================================
+// Intel R-Tile 用户侧 bind wrapper：把 intel_pcie_if 与 adapter 配置发布到 ADAPTER_PATH，不另建 adapter。
+// DUT 用户侧端口须为 wire/tri net，方向由 SIDE 在 elaboration 时确定；
+// 顶层须在 #0 之后调用 run_test()，保证 build_phase 前 config_db 已可见。
 `include "intel_pcie_params.svh"
 
-// 单层 wrapper 同时完成引脚映射和配置发布，避免为唯一 inout 入口重复转接端口。
 module intel_pcie_bind_wrapper_inout #(
-    // ADAPTER_NAME 仅为旧调用兼容保留，通常省略；只影响 cfg 对象名称，
-    // 不创建或定位 UVM component，接入路径由 ADAPTER_PATH 决定。
+    // 仅为兼容旧调用保留，只影响 cfg 对象名；接入路径由 ADAPTER_PATH 决定。
     parameter string ADAPTER_NAME = "",
-    // 必须与待连接的 pcie_tl_env adapter 实例路径一致，例如
-    // 默认单 RC 环境实际创建名为 rc_adapter_0；单 EP 环境实际创建名为
-    // ep_adapter。多 RC/EP 时使用 rc_adapter_<n>/ep_adapter_<n>。
+    // 须与 pcie_tl_env 中的 adapter 实例路径一致：单 RC 为 rc_adapter_0，单 EP 为 ep_adapter，
+    // 多 RC/EP 为 rc_adapter_<n>/ep_adapter_<n>。
     parameter string ADAPTER_PATH = "uvm_test_top.env.rc_adapter_0",
     // HARD_IP: wrapper 驱动 RX/tx_ready/TX credit；APPLICATION: 驱动
     // TX/rx_ready/RX credit。大小写必须使用这两个固定值。
@@ -31,8 +19,7 @@ module intel_pcie_bind_wrapper_inout #(
     input wire clk,
     input wire rst_n,
 
-    // RX 分段数据及路由/完整性边带。数组高位段对应较大的 st 编号；
-    // bind 调用处应按 {stN,...,st0} 连接，以匹配 interface 的 packed 数组。
+    // 高位段对应较大的 st 编号，bind 时按 {stN,...,st0} 连接以匹配 interface 的 packed 数组。
     inout wire [SEGMENTS-1:0][DATA_WIDTH-1:0] rx_data,
     inout wire [SEGMENTS-1:0][127:0] rx_hdr,
     inout wire [SEGMENTS-1:0][31:0] rx_prefix,
@@ -50,7 +37,7 @@ module intel_pcie_bind_wrapper_inout #(
     inout wire [SEGMENTS-1:0][3:0] rx_hdr_par,
     inout wire [SEGMENTS-1:0] rx_prefix_par,
 
-    // TX 分段数据及完整性边带；TX 没有 empty/bar/function 路由字段。
+    // TX 没有 empty/bar/function 路由字段。
     inout wire [SEGMENTS-1:0][DATA_WIDTH-1:0] tx_data,
     inout wire [SEGMENTS-1:0][127:0] tx_hdr,
     inout wire [SEGMENTS-1:0][31:0] tx_prefix,
@@ -63,8 +50,7 @@ module intel_pcie_bind_wrapper_inout #(
     inout wire [SEGMENTS-1:0][3:0] tx_hdr_par,
     inout wire [SEGMENTS-1:0] tx_prefix_par,
 
-    // ready/credit 信号均保留为 inout net，使同一个 wrapper 可在两种 SIDE
-    // 下复用；generate 块只为当前 SIDE 领取一侧的驱动权。
+    // ready/credit 也是 inout，同一 wrapper 可用于两种 SIDE；generate 只为当前 SIDE 驱动一侧。
     inout wire rx_ready,
     inout wire tx_ready,
     inout wire [2:0] rx_hcrdt_init,
@@ -91,15 +77,12 @@ module intel_pcie_bind_wrapper_inout #(
     localparam bit IS_APPLICATION = (SIDE == "APPLICATION");
 
     intel_pcie_if #(DATA_WIDTH, SEGMENTS) u_intel_pcie_if(clk, rst_n);
-    // 在顶层 #0 后、run_test 前可调整 cfg 的行为字段；不能修改 cfg.side，
-    // 因为实际网络方向已由 SIDE 参数固定。adapter build_phase 会再次校验配置。
+    // 可在顶层 #0 后、run_test 前调整 cfg 的行为字段；cfg.side 不可改，网络方向已由 SIDE 固定。
     intel_pcie_adapter_config cfg;
     string resolved_name;
 
-    // 只有 adapter 的输入方向反向采样真实 DUT 网络。adapter 不会写这些
-    // interface 字段，因此连续赋值不会和 procedural driver 产生多重变量驱动。
-    // 绑定点本身是解析 net，赋值后 monitor 看到的仍是 DUT 网络解析值；
-    // 若 DUT 与其他驱动冲突，网络上的 X 会原样进入 interface。
+    // adapter 输入方向的 interface 字段由连续赋值采样 DUT 网络（adapter 不写它们，无多重驱动）；
+    // 网络冲突产生的 X 会原样进入 interface。
     generate
         if (IS_HARD_IP) begin : g_hard_input
             assign u_intel_pcie_if.tx_data = tx_data;
@@ -152,8 +135,7 @@ module intel_pcie_bind_wrapper_inout #(
         end
     endgenerate
 
-    // interface 的输出由 adapter 在下降沿写入；wrapper 持续把这些值以 supply
-    // 强度驱动绑定点。未拥有的方向保持 Z，避免和真实 DUT 的输出竞争。
+    // adapter 输出以 supply 强度驱动绑定点；未拥有的方向保持 Z，避免与 DUT 输出竞争。
     generate
         if (IS_HARD_IP) begin : g_hard_output
             assign (supply1, supply0) rx_data = u_intel_pcie_if.rx_data;
@@ -206,8 +188,7 @@ module intel_pcie_bind_wrapper_inout #(
         end
     endgenerate
 
-    // 创建配置只发生在 time-0；失败时立即终止，避免 adapter build_phase 以默认
-    // 方向运行。ADAPTER_PATH 为空、SIDE 非法或名称含特殊字符都会走 fatal。
+    // time-0 发布配置；参数非法直接 fatal，避免 adapter 以默认方向运行。
     initial begin : publish_config
         string name_for_cfg;
         if (!IS_HARD_IP && !IS_APPLICATION)

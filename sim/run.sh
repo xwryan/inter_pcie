@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# sim：VCS 编译/回归入口，依赖外部 pcie_work、host_mem 和已加载的 VCS/license。
-# 产物仅写入 BUILD_DIR；失败日志保留。脚本不登录远端、不保存口令，必须在 .53 执行。
+# VCS 编译/回归入口；依赖外部 pcie_work、host_mem、aip_core 及已加载的 VCS/license，产物只写入 BUILD_DIR。
 set -euo pipefail
 
 task_ips=" $(hostname -I) "

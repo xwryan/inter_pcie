@@ -1,9 +1,7 @@
-// tests：信号级双向传输、压力、信用耗尽和复位回归；依赖 pair_test。
-// 数据必须走 interface 再解码，无 assign/TLM 旁路。负例只捕获预期 reset 报告。
+// 信号级双向传输、压力、信用耗尽与复位回归；数据必须经 interface 编解码，没有 assign/TLM 旁路。
 class intel_pcie_transport_test extends intel_pcie_pair_test;
     `uvm_component_utils(intel_pcie_transport_test)
 
-    // 标准 UVM 构造，复用基类的 adapter 所有权。
     function new(string name="intel_pcie_transport_test", uvm_component parent=null);
         super.new(name,parent);
     endfunction
@@ -46,7 +44,6 @@ endclass
 class intel_pcie_rx_gap_test extends intel_pcie_pair_test;
     `uvm_component_utils(intel_pcie_rx_gap_test)
 
-    // 标准 UVM 构造，不改 testbench 引脚方向。
     function new(string name="intel_pcie_rx_gap_test", uvm_component parent=null);
         super.new(name,parent);
     endfunction
@@ -86,7 +83,6 @@ endclass
 class intel_pcie_tx_ready_test extends intel_pcie_pair_test;
     `uvm_component_utils(intel_pcie_tx_ready_test)
 
-    // 标准 UVM 构造；stop_latency 由派生16拍测试覆盖。
     function new(string name="intel_pcie_tx_ready_test", uvm_component parent=null);
         super.new(name,parent);
     endfunction
@@ -144,10 +140,10 @@ class intel_pcie_tx_ready_test extends intel_pcie_pair_test;
     endtask
 endclass
 
+// 复用 tx_ready 测试的原始字节检查，只改变允许的停发反应延迟。
 class intel_pcie_tx_ready16_test extends intel_pcie_tx_ready_test;
     `uvm_component_utils(intel_pcie_tx_ready16_test)
 
-    // 复用同一原始字节 scoreboard，只改变允许的停发反应延迟。
     function new(string name="intel_pcie_tx_ready16_test", uvm_component parent=null);
         super.new(name,parent);
     endfunction
@@ -161,7 +157,6 @@ endclass
 class intel_pcie_credit_test extends intel_pcie_pair_test;
     `uvm_component_utils(intel_pcie_credit_test)
 
-    // 标准 UVM 构造，有限信用由 config 独立设置。
     function new(string name="intel_pcie_credit_test", uvm_component parent=null);
         super.new(name,parent);
     endfunction
@@ -204,7 +199,6 @@ endclass
 class intel_pcie_reset_test extends intel_pcie_pair_test;
     `uvm_component_utils(intel_pcie_reset_test)
 
-    // 标准 UVM 构造，由 control interface 独占复位驱动。
     function new(string name="intel_pcie_reset_test", uvm_component parent=null);
         super.new(name,parent);
     endfunction

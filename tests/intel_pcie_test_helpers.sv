@@ -1,7 +1,6 @@
-// tests：公共构包、比对和预期错误计数，依赖产品包与公共 pcie_tl_pkg。
-// 只提供测试工具；golden 位域/时序测试仍手工构造，不能全靠 codec 往返自证。
+// 测试公共工具：构包、比对和预期错误计数；golden 位域/时序仍需手工构造，不能全靠 codec 往返自证。
 
-// 创建有模式数据的 Memory TLP，nbytes=0 表示 MRd；不 randomize，结果可复现。
+// nbytes=0 生成 MRd；不 randomize，结果可复现。
 function automatic pcie_tl_mem_tlp intel_test_mem(int nbytes, int marker = 0,
                                                 bit four_dw = 1);
     pcie_tl_mem_tlp t = pcie_tl_mem_tlp::type_id::create("memory");
@@ -21,7 +20,7 @@ function automatic pcie_tl_mem_tlp intel_test_mem(int nbytes, int marker = 0,
     return t;
 endfunction
 
-// 比较全部编码 Header/Prefix/Payload（包含地址、tag、BE）；空返回直接 fatal。
+// 按编码后的 Header/Prefix/Payload 全量比较（含地址、tag、BE）。
 function automatic void intel_test_equal(pcie_tl_tlp expected, pcie_tl_tlp actual);
     pcie_tl_codec c = new("compare_codec");
     bit [7:0] e[], a[];
@@ -37,17 +36,15 @@ function automatic void intel_test_equal(pcie_tl_tlp expected, pcie_tl_tlp actua
             `uvm_fatal("TEST_COMPARE", $sformatf("byte %0d expected=%02x actual=%02x", i,e[i],a[i]))
 endfunction
 
-// 负例只捕获精确 ID，记录次数；未预期的其它 UVM_ERROR 仍会令回归失败。
+// 负例只捕获精确 ID 并计数，其它 UVM_ERROR 仍会令回归失败；测试结束须移除 catcher 并核对 count。
 class intel_expected_error extends uvm_report_catcher;
     string expected_id;
     int count;
 
-    // 一个 catcher 只服务当前测试阶段；测试完成后必须移除并核对 count。
     function new(string name = "intel_expected_error");
         super.new(name);
     endfunction
 
-    // 不更改报告的其它属性，仅吞掉测试明确要求触发的 ERROR。
     virtual function action_e catch();
         if (get_severity() == UVM_ERROR && get_id() == expected_id) begin
             count++;
@@ -65,16 +62,14 @@ class intel_pcie_pair_test extends uvm_test;
     intel_pcie_vif_t bus;
     virtual intel_pcie_test_control_if control;
 
-    // UVM test 拥有两 adapter、各自 config；interface 由 top 拥有。
     function new(string name = "intel_pcie_pair_test", uvm_component parent = null);
         super.new(name, parent);
     endfunction
 
-    // 派生测试在创建组件之前改容量/时序选项，不在发包中改变接口几何参数。
+    // 派生测试在此修改容量/时序选项（创建组件之前调用）。
     virtual function void configure();
     endfunction
 
-    // 构建同一端口的两侧，不克隆/修改外部 pcie_work 源码。
     function void build_phase(uvm_phase phase);
         pcie_tl_if_adapter h, a;
         super.build_phase(phase);
@@ -94,7 +89,7 @@ class intel_pcie_pair_test extends uvm_test;
             `uvm_fatal("TEST_VIF", "missing reset control")
     endfunction
 
-    // 等待双方公布完整信用；watchdog 防止 init/ACK 接反造成无限等待。
+    // 等待双方信用初始化完成；init/ACK 接反时由 watchdog 结束仿真。
     task wait_initialized();
         wait (app.running && hip.running && !app.in_reset && !hip.in_reset);
         wait (app.credits.hready[0] && hip.credits.hready[0] &&

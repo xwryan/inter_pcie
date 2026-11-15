@@ -1,6 +1,5 @@
-// tb：只发布 virtual interface 的连接宏，依赖 UVM 和 intel_pcie_adapter_pkg。
-// 每条总线最多连接一个 APPLICATION 和一个 HARD_IP，连接宏不决定信号方向。
-// PATH 为明确层次路径，支持 rc_adapter_<n>/ep_adapter_<n>，不使用跨端口通配。
+// 向明确的 adapter 层次路径发布 vif（支持 rc_adapter_<n>/ep_adapter_<n>，不用跨端口通配）；
+// 每条总线最多接一个 APPLICATION 和一个 HARD_IP，信号方向由 adapter 的 side 决定。
 `ifndef INTEL_PCIE_ADAPTER_CONNECT_SVH
 `define INTEL_PCIE_ADAPTER_CONNECT_SVH
 `define INTEL_PCIE_ADAPTER_CONNECT(PATH, BUS) \

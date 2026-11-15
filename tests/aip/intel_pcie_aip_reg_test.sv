@@ -1,7 +1,5 @@
-// tests/aip：真实 AIP launch→公共 reg_seq→Intel 4x256 bind 的端到端回归。
-// 依赖先编译 aip_core_pkg、现有 Intel 测试包与双 wrapper fixture；不含 SVT。
-// test 独占命令 sequencer 句柄、期望队列和后备内存；monitor 手工拆 Header，
-// 不用产品 codec 自证。+AIP_TCL 模式交给真实 Tcl bridge，SV 模式覆盖连续业务。
+// 端到端回归：真实 AIP 命令 → 公共 reg_seq → Intel 4x256 bind 引脚。
+// 引脚 monitor 手工解析 Header，不用产品 codec 自证；+AIP_TCL 时交给真实 Tcl bridge，否则跑 SV 连续业务。
 package intel_pcie_aip_reg_test_pkg;
     import uvm_pkg::*;
     import aip_core_pkg::*;
@@ -11,7 +9,6 @@ package intel_pcie_aip_reg_test_pkg;
     import intel_pcie_tests_pkg::*;
     `include "uvm_macros.svh"
 
-    // 命令只借用完整 env 的 requester sequencer，生命周期由 env 管理。
     class intel_reg_context;
         static uvm_sequencer_base	sqr;
         static bit [63:0]	base;
@@ -23,7 +20,7 @@ package intel_pcie_aip_reg_test_pkg;
     `aip_cmd_reg(reg_acc, pcie_tl_reg_seq, intel_reg_context::sqr, seq.error_msg)
     `aip_cmd_task(reg_test_base, intel_reg_context::get_base)
 
-    // 复用完整 env/SCB/双向 Completion，测试拥有已分配的 4KB 寄存器区域。
+    // 复用完整 env/SCB 与双向 Completion；寄存器区是已分配的 4KB 内存。
     class intel_pcie_aip_reg_test extends intel_pcie_env_test;
         `uvm_component_utils(intel_pcie_aip_reg_test)
         typedef struct packed {
@@ -41,7 +38,6 @@ package intel_pcie_aip_reg_test_pkg;
         int	                    commands;
         bit [63:0]	             base;
 
-        // UVM 标准构造，全部业务输出按 test 实例隔离。
         function new(string name, uvm_component parent); super.new(name, parent); endfunction
 
         // 在 env connect 前初始化注入内存，分别测试 3DW 与 4DW 地址格式。
@@ -52,8 +48,7 @@ package intel_pcie_aip_reg_test_pkg;
             device_manager.init_region(region_base, region_base + 65535);
         endfunction
 
-        // 将命令的有效字节区间登记为期望；全 mask 不登记任何 TLP。
-        // 每个期望保留原始数据，独立引脚监视器检查字节落点、BE 和地址格式。
+        // 登记命令有效字节区间的期望（全 mask 不产生 TLP），供引脚 monitor 核对字节落点、BE 和地址格式。
         function void expect_request(bit wr, bit [63:0] address, int length_bytes,
                                      bit [127:0] data, int unsigned masked);
             int	first;
@@ -224,7 +219,7 @@ package intel_pcie_aip_reg_test_pkg;
     endclass
 endpackage
 
-// 复用产品双 wrapper 接线，顶层只设置 Header 顺序与奇偶校验，不修改 bind 文件。
+// 复用产品双 wrapper 接线，顶层只设置 Header 字节序与奇偶校验。
 module tb_intel_pcie_aip_reg;
     timeunit 1ns;
     timeprecision 1ps;
