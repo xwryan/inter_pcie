@@ -1,5 +1,7 @@
 // 库编译入口；路径环境变量由调用者设置，不依赖 /tmp 或机器名。
 // HOST_MEM_ROOT 为独立 host_mem 仓库，package 自行 include manager，不能重复编译。
+// aip_core 是 pcie_tl_pkg 的默认依赖，经 pcie_work 的 aip_core.f 最先编译一次。
+-f $PCIE_WORK_ROOT/pcie_tl_vip/sim/aip_core.f
 +incdir+$HOST_MEM_ROOT/src
 $HOST_MEM_ROOT/src/host_mem_pkg.sv
 +incdir+$PCIE_WORK_ROOT/pcie_tl_vip/src
