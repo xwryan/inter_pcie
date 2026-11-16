@@ -44,15 +44,16 @@ RX `ready` 必须常高，缓冲不足通过 credit 表示。TX `ready` 拉低�
 
 ## 执行回归
 
-所有仿真必须在 `10.11.10.53` 执行。通过 `bash -lic` 加载该主机的 VCS 和 license 环境，在远端源码目录运行：
+在已加载 VCS 和 license 环境的主机上（例如 `bash -lic` 加载 `~/.bashrc`），于源码目录运行：
 
 ```bash
 export PCIE_WORK_ROOT=/absolute/path/to/pcie_work
 export HOST_MEM_ROOT=/absolute/path/to/host_mem
+export AIP_CORE_ROOT=/absolute/path/to/aip_core
 bash sim/run.sh
 ```
 
-`sim/run.sh` 在非指定主机上拒绝运行。默认编译后执行全部回归；可指定测试名，例如 `bash sim/run.sh intel_pcie_tx_ready16_test`。已有相同配置的二进制时，可用 `SKIP_COMPILE=1`。日志默认写入 `sim/build/logs`；判断成功同时要求 UVM ERROR/FATAL 为零和场景完成标记，不能只看进程退出码。
+`sim/run.sh` 不限定主机，但 `vcs`/`python3` 不在 PATH 或依赖根目录缺文件时直接退出。默认编译后执行全部回归；可指定测试名，例如 `bash sim/run.sh intel_pcie_tx_ready16_test`。已有相同配置的二进制时，可用 `SKIP_COMPILE=1`。日志默认写入 `sim/build/logs`；判断成功同时要求 UVM ERROR/FATAL 为零和场景完成标记，不能只看进程退出码。
 
 较小的合法几何配置用 `DATA_WIDTH` / `SEGMENTS` 编译，必须使用独立 `BUILD_DIR`。手工图31测试固定使用 4×256，其他宽度应显式选择适用测试，详见验证记录。
 

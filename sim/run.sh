@@ -2,11 +2,11 @@
 # VCS 编译/回归入口；依赖外部 pcie_work、host_mem、aip_core 及已加载的 VCS/license，产物只写入 BUILD_DIR。
 set -euo pipefail
 
-task_ips=" $(hostname -I) "
-if [[ "$task_ips" != *" 10.11.10.53 "* ]]; then
-    echo "Simulation must run on 10.11.10.53; load ~/.bashrc first." >&2
-    exit 2
-fi
+# 不绑定主机，只检查前置条件：VCS 须已在 PATH（先加载 VCS/license 环境），日志检查需要 python3。
+for task_tool in vcs python3; do
+    command -v "$task_tool" > /dev/null ||
+        { echo "$task_tool not found on PATH; load the VCS/license environment (e.g. ~/.bashrc) first." >&2; exit 2; }
+done
 export INTEL_PCIE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export PCIE_WORK_ROOT="${PCIE_WORK_ROOT:-$INTEL_PCIE_ROOT/../pcie_work}"
 export HOST_MEM_ROOT="${HOST_MEM_ROOT:-$INTEL_PCIE_ROOT/../host_mem}"
