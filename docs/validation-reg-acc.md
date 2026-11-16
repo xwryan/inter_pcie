@@ -1,6 +1,6 @@
 # 2026-11-06：AIP reg_acc / pcie_tl_reg_seq 验证
 
-验证主机：`ubuntu@10.11.10.53`。通过 bash 登录环境加载 VCS/license。
+验证环境：通过 bash 登录环境加载 VCS/license 的主机。
 所有 PASS 均要求实际完成标记；Intel 与公共 sequence 回归另要求最终 UVM_ERROR/FATAL 为 0。
 
 ## 源码基线

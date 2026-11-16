@@ -2,7 +2,7 @@
 
 ## 2026-11-02：bind 简化与统一环境入口
 
-本轮在 `10.11.10.53` 使用 VCS W-2024.09-SP1 / UVM 1.2 验证单层
+本轮使用 VCS W-2024.09-SP1 / UVM 1.2 验证单层
 `intel_pcie_bind_wrapper_inout` 和 `intel_pcie_configure_env`。5.6 模型执行仿真和
 日志判定，Astra 完成源码、日志及配置作用域的最终审查。
 
@@ -45,7 +45,7 @@ Git 提交号代替这些实际源码快照。测试后重算的远端实际依�
 
 ## 2026-10-30：初始适配器与深度流量回归
 
-验证日期：2026-10-30。所有编译与仿真在用户指定的 `10.11.10.53`、用户 `ubuntu` 下执行，通过 `bash -lic` 加载 `.bashrc` 中的工具与license配置。Astra负责实现/修复/审查，GPT-5.6-sol负责VCS执行、日志分析和结果判定。
+验证日期：2026-10-30。所有编译与仿真在已配置 VCS 和许可证的主机上执行，通过 `bash -lic` 加载 `.bashrc` 中的工具与license配置。Astra负责实现/修复/审查，GPT-5.6-sol负责VCS执行、日志分析和结果判定。
 
 工具为 VCS **W-2024.09-SP1**（build 2024-12-03），UVM 1.2，测试seed=1。外部依赖版本见[README](../README.md)。测试使用两BFM经真实interface引脚连接，没有TLM数据回环或自发自收旁路；env测试的业务响应仍由公共协议模型完成。
 
@@ -112,7 +112,7 @@ Completion，但 SCB pending 为空，出现 3 次 `Unexpected Completion`。临
 `{Requester ID, Tag}` 键并保存请求快照，单侧环境补足缺失的发送观察，双 BFM 不重复
 计数。原 TLM 通路保留迟到 RX 不重新登记已完成事务的行为。
 
-在 `10.11.10.53` 用冻结源码、VCS W-2024.09-SP1、seed=1 执行首轮 10 项，均通过，
+用冻结源码、VCS W-2024.09-SP1、seed=1 执行首轮 10 项，均通过，
 每项 UVM_WARNING/ERROR/FATAL 都为 0：
 
 | 场景 | SCB 请求 / Completion 分片 / 完整匹配 | 额外判据 |
@@ -154,7 +154,7 @@ unexpected/mismatched/timed_out 为 0。首轮 split 仅验证结果 Tag 相等�
 LEGAL/ILLEGAL/CORNER 三种模式都适用；显式 inline 约束可覆盖单项，其余项仍为 0。
 默认模式原有的 `soft constraint_mode_sel == CONSTRAINT_LEGAL` 保留。
 
-在 `10.11.10.53` 冻结 144 个输入文件并编译公共 TL / Intel bind 两套镜像，执行
+冻结 144 个输入文件并编译公共 TL / Intel bind 两套镜像，执行
 6 次运行全部通过，UVM_WARNING/ERROR/FATAL 均为 0：
 
 - `pcie_tl_injection_defaults_unit_test`：seed 1/2/3 各 338 次精确检查，共 1014 次；

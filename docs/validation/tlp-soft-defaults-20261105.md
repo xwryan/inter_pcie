@@ -4,7 +4,7 @@
 
 ## Environment and frozen input
 
-- Host: `ubuntu@10.11.10.53`
+- Host: a simulation host with VCS and its licence
 - VCS: `W-2024.09-SP1_Full64`
 - Isolated tree: `/tmp/pcie_tlp_soft_defaults_20261105.a9NPqm`
 - Input manifest: 144 files from `pcie_tl_vip`, `host_mem`, and `pcie_intel`
