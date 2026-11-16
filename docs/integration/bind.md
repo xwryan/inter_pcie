@@ -360,7 +360,7 @@ pcie_env = pcie_tl_env::type_id::create("pcie_env", this);
 自定义测试若直接索引 SCB 表，应改用 `scb.request_key(tlp)`，不能继续只用 Tag。
 
 本轮配套的公共库版本为
-[`pcie_work` main 的 `a8fff69`](https://github.com/Beihang-yuting/pcie_work/commit/a8fff69)，
+[`pcie_work` main 的 `a8fff69`](https://github.com/xwryan/pcie_work/commit/a8fff69)，
 包含 bridge SCB 修复及 TLP 错误注入字段的 soft 0 默认值。
 
 目前单侧观察补足支持直连及观察完整的 root。同一 switch root 混合真实 DUT EP
@@ -373,9 +373,9 @@ bind 文件不加入默认 `sim/filelist_tests.f`，避免没有绑定目标时�
 应在自己的 filelist 中追加：
 
 ```text
--f $INTEL_PCIE_ROOT/sim/filelist_lib.f
-$INTEL_PCIE_ROOT/bind/intel_pcie_bind_wrapper.sv
-$INTEL_PCIE_ROOT/tb/my_pcie_bind.sv
+-f $AIP_CORE_ROOT/aip_core.f -f $HOST_MEM_ROOT/host_mem.f -f $PCIE_WORK_ROOT/pcie_work.f
+-f $INTER_PCIE_ROOT/inter_pcie.f -f $INTER_PCIE_ROOT/inter_pcie_bind.f
+$INTER_PCIE_ROOT/tb/my_pcie_bind.sv
 ```
 
 `INTEL_PCIE_DATA_WIDTH` / `INTEL_PCIE_SEGMENTS` 必须与目标端口一致。wrapper 只适配
@@ -385,18 +385,20 @@ $INTEL_PCIE_ROOT/tb/my_pcie_bind.sv
 在指定 VCS 主机上运行仓库自带 smoke：
 
 ```bash
-export INTEL_PCIE_ROOT=/path/to/pcie_intel
+export INTER_PCIE_ROOT=/path/to/inter_pcie
 export PCIE_WORK_ROOT=/path/to/pcie_work
 export HOST_MEM_ROOT=/path/to/host_mem
-vcs -full64 -sverilog -ntb_opts uvm-1.2 -top tb_intel_pcie_bind_smoke \
-  -f $INTEL_PCIE_ROOT/sim/filelist_bind.f \
+export AIP_CORE_ROOT=/path/to/aip_core
+DEPS="-f $AIP_CORE_ROOT/aip_core.f -f $HOST_MEM_ROOT/host_mem.f -f $PCIE_WORK_ROOT/pcie_work.f -f $INTER_PCIE_ROOT/inter_pcie.f -f $INTER_PCIE_ROOT/inter_pcie_bind.f"
+vcs -full64 -sverilog -ntb_opts uvm-1.2 -timescale=1ns/1ps -top tb_intel_pcie_bind_smoke \
+  $DEPS -f $INTER_PCIE_ROOT/sim/filelist_bind.f \
   +define+INTEL_PCIE_DATA_WIDTH=256 +define+INTEL_PCIE_SEGMENTS=4 \
   -o simv_bind
 ./simv_bind
 ```
 
 smoke 会检查两个 SIDE 的配置发布、输入采样和 supply 输出；将 bind 语句替换为真实
-DUT 后仍需保留 `-f sim/filelist_lib.f` 的库编译顺序。
+DUT 后仍需保留上述 filelist 的库编译顺序。
 
 完整环境回归用两个独立 interface 经 wrapper 和 wire 网络对接，保持 credit 开启并
 检查 parity；它复用公共 `pcie_tl_rw_seq`，没有直接共享 interface 的旁路。在独立构建目录
@@ -404,7 +406,7 @@ DUT 后仍需保留 `-f sim/filelist_lib.f` 的库编译顺序。
 
 ```bash
 vcs -full64 -sverilog -ntb_opts uvm-1.2 -timescale=1ns/1ps \
-  -top tb_intel_pcie_bind_env -f $INTEL_PCIE_ROOT/sim/filelist_bind_env.f \
+  -top tb_intel_pcie_bind_env $DEPS -f $INTER_PCIE_ROOT/sim/filelist_bind_env.f \
   -o simv_bind_env
 ./simv_bind_env +UVM_TESTNAME=intel_pcie_env_test
 ./simv_bind_env +UVM_TESTNAME=intel_pcie_env_stress_test
@@ -416,7 +418,7 @@ vcs -full64 -sverilog -ntb_opts uvm-1.2 -timescale=1ns/1ps \
 
 ```bash
 vcs -full64 -sverilog -ntb_opts uvm-1.2 -timescale=1ns/1ps \
-  -top tb_intel_pcie_bind_split_env -f $INTEL_PCIE_ROOT/sim/filelist_bind_env.f \
+  -top tb_intel_pcie_bind_split_env $DEPS -f $INTER_PCIE_ROOT/sim/filelist_bind_env.f \
   -o simv_bind_split
 ./simv_bind_split +UVM_TESTNAME=intel_pcie_env_split_test
 ```

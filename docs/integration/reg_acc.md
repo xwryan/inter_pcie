@@ -41,16 +41,18 @@ AIP 的默认 mask 已由全 1 改为 0；其他总线原有使能语义需显�
 
 ## 验证入口
 
-在 VCS 主机设置 `INTEL_PCIE_ROOT`、`PCIE_WORK_ROOT`、`HOST_MEM_ROOT`、
+在 VCS 主机设置 `INTER_PCIE_ROOT`、`PCIE_WORK_ROOT`、`HOST_MEM_ROOT`、
 `AIP_CORE_ROOT`，后者必须指向包含本次解析扩展的 AIP 工作树：
 
 ```bash
 vcs -full64 -sverilog -ntb_opts uvm-1.2 -timescale=1ns/1ps \
     -debug_access+all -top tb_intel_pcie_aip_reg \
-    -f "$INTEL_PCIE_ROOT/sim/filelist_aip_reg.f" -o simv_reg
+    -f "$AIP_CORE_ROOT/aip_core.f" -f "$HOST_MEM_ROOT/host_mem.f" -f "$PCIE_WORK_ROOT/pcie_work.f" \
+    -f "$INTER_PCIE_ROOT/inter_pcie.f" -f "$INTER_PCIE_ROOT/inter_pcie_bind.f" \
+    -f "$INTER_PCIE_ROOT/sim/filelist_aip_reg.f" -o simv_reg
 ./simv_reg
 ./simv_reg +HIGH_ADDR +LITTLE_HEADER
-./simv_reg +AIP_TCL -ucli -do "$INTEL_PCIE_ROOT/tests/aip/intel_pcie_reg.tcl"
+./simv_reg +AIP_TCL -ucli -do "$INTER_PCIE_ROOT/tests/aip/intel_pcie_reg.tcl"
 ```
 
 默认 4x256。SV 模式检查连续四种长度、稀疏/全 mask、原始 RX Header/data、读回和 SCB；

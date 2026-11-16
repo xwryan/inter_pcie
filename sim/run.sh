@@ -7,22 +7,23 @@ for task_tool in vcs python3; do
     command -v "$task_tool" > /dev/null ||
         { echo "$task_tool not found on PATH; load the VCS/license environment (e.g. ~/.bashrc) first." >&2; exit 2; }
 done
-export INTEL_PCIE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-export PCIE_WORK_ROOT="${PCIE_WORK_ROOT:-$INTEL_PCIE_ROOT/../pcie_work}"
-export HOST_MEM_ROOT="${HOST_MEM_ROOT:-$INTEL_PCIE_ROOT/../host_mem}"
+export INTER_PCIE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export PCIE_WORK_ROOT="${PCIE_WORK_ROOT:-$INTER_PCIE_ROOT/../pcie_work}"
+export HOST_MEM_ROOT="${HOST_MEM_ROOT:-$INTER_PCIE_ROOT/../host_mem}"
 export AIP_CORE_ROOT="${AIP_CORE_ROOT:?AIP_CORE_ROOT must point to the aip_core checkout}"
-task_build="${BUILD_DIR:-$INTEL_PCIE_ROOT/sim/build}"
+task_build="${BUILD_DIR:-$INTER_PCIE_ROOT/sim/build}"
 mkdir -p "$task_build/logs"
 task_build="$(cd "$task_build" && pwd)"
 
-for task_file in "$PCIE_WORK_ROOT/pcie_tl_vip/src/pcie_tl_pkg.sv" "$HOST_MEM_ROOT/src/host_mem_pkg.sv" \
-                 "$AIP_CORE_ROOT/src/sv/aip_core_pkg.sv"; do
+for task_file in "$AIP_CORE_ROOT/aip_core.f" "$HOST_MEM_ROOT/host_mem.f" "$PCIE_WORK_ROOT/pcie_work.f"; do
     [[ -f "$task_file" ]] || { echo "Missing dependency: $task_file" >&2; exit 2; }
 done
 cd "$task_build"
 if [[ "${SKIP_COMPILE:-0}" != 1 ]]; then
     vcs -full64 -sverilog -ntb_opts uvm-1.2 -timescale=1ns/1ps \
-        -top tb_intel_pcie -f "$INTEL_PCIE_ROOT/sim/filelist_tests.f" \
+        -top tb_intel_pcie -f "$AIP_CORE_ROOT/aip_core.f" -f "$HOST_MEM_ROOT/host_mem.f" \
+        -f "$PCIE_WORK_ROOT/pcie_work.f" -f "$INTER_PCIE_ROOT/inter_pcie.f" \
+        -f "$INTER_PCIE_ROOT/sim/filelist_tests.f" \
         -Mdir="$task_build/csrc" -o "$task_build/simv" \
         -l "$task_build/logs/compile.log" \
         "+define+INTEL_PCIE_DATA_WIDTH=${DATA_WIDTH:-256}" \

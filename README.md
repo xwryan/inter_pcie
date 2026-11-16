@@ -33,13 +33,22 @@ RX `ready` 必须常高，缓冲不足通过 credit 表示。TX `ready` 拉低�
 
 ## 外部依赖
 
-依赖保持在外部，通过 filelist 环境变量引用；不复制公共协议实现。
+依赖保持在外部，不复制公共协议实现。工程编译依次组合各仓库自己的 filelist（`INTER_PCIE_ROOT` 指向本仓库）：
+
+```text
+-f $AIP_CORE_ROOT/aip_core.f -f $HOST_MEM_ROOT/host_mem.f -f $PCIE_WORK_ROOT/pcie_work.f
+-f $INTER_PCIE_ROOT/inter_pcie.f
+-f $INTER_PCIE_ROOT/inter_pcie_bind.f        # 仅 bind 到真实 DUT 时
+```
+
+`sim/` 下的 `filelist_tests.f`（默认回归）、`filelist_bind.f`（bind smoke）、`filelist_bind_env.f`（bind env）与
+`filelist_aip_reg.f`（AIP 寄存器访问）只含测试与顶层，追加在上述 filelist 之后。
 
 | 来源 | 初始参考/验证版本（2026-10-30） |
 | --- | --- |
-| [pcie_work/main](https://github.com/Beihang-yuting/pcie_work/tree/main) | `2ae1129093b4014fd0528f6092ab303fc8ca4feb` |
+| [pcie_work/main](https://github.com/xwryan/pcie_work/tree/main) | `2ae1129093b4014fd0528f6092ab303fc8ca4feb` |
 | 独立 `host_mem` 仓库 | `35ec087014744ec85cf6c0fe17e1f7118ee7a7b7` |
-| [xillinx_pcie/feat/adapter-mode](https://github.com/Beihang-yuting/xillinx_pcie/tree/feat/adapter-mode)（设计参考，不参与编译） | `f3646316b2125486f7074bd2d97cf8dc62bc997e` |
+| [xillinx_pcie/feat/adapter-mode](https://github.com/xwryan/xillinx_pcie/tree/feat/adapter-mode)（设计参考，不参与编译） | `f3646316b2125486f7074bd2d97cf8dc62bc997e` |
 | 用户上传 `R-Tile.pdf` | UG-20316，2026.01.29，尤其 pp.75–95 |
 
 ## 执行回归
