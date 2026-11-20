@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# VCS 编译/回归入口；依赖外部 pcie_work、host_mem、aip_core 及已加载的 VCS/license，产物只写入 BUILD_DIR。
+# VCS 编译/回归入口；依赖外部 pcie_work、dpu_common、host_mem、aip_core 及已加载的 VCS/license，产物只写入 BUILD_DIR。
 set -euo pipefail
 
 # 不绑定主机，只检查前置条件：VCS 须已在 PATH（先加载 VCS/license 环境），日志检查需要 python3。
@@ -10,19 +10,22 @@ done
 export INTER_PCIE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export PCIE_WORK_ROOT="${PCIE_WORK_ROOT:-$INTER_PCIE_ROOT/../pcie_work}"
 export HOST_MEM_ROOT="${HOST_MEM_ROOT:-$INTER_PCIE_ROOT/../host_mem}"
+# pcie_work.f 含 DPU 适配层，需要 dpu_common 在它之前。
+export DPU_COMMON_ROOT="${DPU_COMMON_ROOT:-$INTER_PCIE_ROOT/../dpu_common}"
 export AIP_CORE_ROOT="${AIP_CORE_ROOT:?AIP_CORE_ROOT must point to the aip_core checkout}"
 task_build="${BUILD_DIR:-$INTER_PCIE_ROOT/sim/build}"
 mkdir -p "$task_build/logs"
 task_build="$(cd "$task_build" && pwd)"
 
-for task_file in "$AIP_CORE_ROOT/aip_core.f" "$HOST_MEM_ROOT/host_mem.f" "$PCIE_WORK_ROOT/pcie_work.f"; do
+for task_file in "$AIP_CORE_ROOT/aip_core.f" "$HOST_MEM_ROOT/host_mem.f" "$DPU_COMMON_ROOT/dpu_common.f" \
+    "$PCIE_WORK_ROOT/pcie_work.f"; do
     [[ -f "$task_file" ]] || { echo "Missing dependency: $task_file" >&2; exit 2; }
 done
 cd "$task_build"
 if [[ "${SKIP_COMPILE:-0}" != 1 ]]; then
     vcs -full64 -sverilog -ntb_opts uvm-1.2 -timescale=1ns/1ps \
-        -top tb_intel_pcie -f "$AIP_CORE_ROOT/aip_core.f" -f "$HOST_MEM_ROOT/host_mem.f" \
-        -f "$PCIE_WORK_ROOT/pcie_work.f" -f "$INTER_PCIE_ROOT/inter_pcie.f" \
+        -top tb_intel_pcie -F "$AIP_CORE_ROOT/aip_core.f" -F "$HOST_MEM_ROOT/host_mem.f" \
+        -F "$DPU_COMMON_ROOT/dpu_common.f" -F "$PCIE_WORK_ROOT/pcie_work.f" -F "$INTER_PCIE_ROOT/inter_pcie.f" \
         -f "$INTER_PCIE_ROOT/sim/filelist_tests.f" \
         -Mdir="$task_build/csrc" -o "$task_build/simv" \
         -l "$task_build/logs/compile.log" \

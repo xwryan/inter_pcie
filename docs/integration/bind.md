@@ -373,8 +373,8 @@ bind 文件不加入默认 `sim/filelist_tests.f`，避免没有绑定目标时�
 应在自己的 filelist 中追加：
 
 ```text
--f $AIP_CORE_ROOT/aip_core.f -f $HOST_MEM_ROOT/host_mem.f -f $PCIE_WORK_ROOT/pcie_work.f
--f $INTER_PCIE_ROOT/inter_pcie.f -f $INTER_PCIE_ROOT/inter_pcie_bind.f
+-F <ws>/aip_core/aip_core.f -F <ws>/host_mem/host_mem.f -F <ws>/dpu_common/dpu_common.f -F <ws>/pcie_work/pcie_work.f
+-F <ws>/inter_pcie/inter_pcie.f -F <ws>/inter_pcie/inter_pcie_bind.f
 $INTER_PCIE_ROOT/tb/my_pcie_bind.sv
 ```
 
@@ -388,8 +388,9 @@ $INTER_PCIE_ROOT/tb/my_pcie_bind.sv
 export INTER_PCIE_ROOT=/path/to/inter_pcie
 export PCIE_WORK_ROOT=/path/to/pcie_work
 export HOST_MEM_ROOT=/path/to/host_mem
+export DPU_COMMON_ROOT=/path/to/dpu_common
 export AIP_CORE_ROOT=/path/to/aip_core
-DEPS="-f $AIP_CORE_ROOT/aip_core.f -f $HOST_MEM_ROOT/host_mem.f -f $PCIE_WORK_ROOT/pcie_work.f -f $INTER_PCIE_ROOT/inter_pcie.f -f $INTER_PCIE_ROOT/inter_pcie_bind.f"
+DEPS="-F $AIP_CORE_ROOT/aip_core.f -F $HOST_MEM_ROOT/host_mem.f -F $DPU_COMMON_ROOT/dpu_common.f -F $PCIE_WORK_ROOT/pcie_work.f -F $INTER_PCIE_ROOT/inter_pcie.f -F $INTER_PCIE_ROOT/inter_pcie_bind.f"
 vcs -full64 -sverilog -ntb_opts uvm-1.2 -timescale=1ns/1ps -top tb_intel_pcie_bind_smoke \
   $DEPS -f $INTER_PCIE_ROOT/sim/filelist_bind.f \
   +define+INTEL_PCIE_DATA_WIDTH=256 +define+INTEL_PCIE_SEGMENTS=4 \

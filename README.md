@@ -33,16 +33,21 @@ RX `ready` 必须常高，缓冲不足通过 credit 表示。TX `ready` 拉低�
 
 ## 外部依赖
 
-依赖保持在外部，不复制公共协议实现。工程编译依次组合各仓库自己的 filelist（`INTER_PCIE_ROOT` 指向本仓库）：
+依赖保持在外部，不复制公共协议实现。工程编译每个项目一行大写 `-F`，按依赖顺序组合各仓库自己的主 filelist
+（filelist 内的路径相对它自己的目录，不需要 `*_ROOT`，可在任意目录编译；filelist 不拉入依赖）：
 
 ```text
--f $AIP_CORE_ROOT/aip_core.f -f $HOST_MEM_ROOT/host_mem.f -f $PCIE_WORK_ROOT/pcie_work.f
--f $INTER_PCIE_ROOT/inter_pcie.f
--f $INTER_PCIE_ROOT/inter_pcie_bind.f        # 仅 bind 到真实 DUT 时
+-F <ws>/aip_core/aip_core.f -F <ws>/host_mem/host_mem.f -F <ws>/dpu_common/dpu_common.f
+-F <ws>/pcie_work/pcie_work.f                  # 含 DPU 适配层，所以前面要有 dpu_common
+-F <ws>/inter_pcie/inter_pcie.f
+-F <ws>/inter_pcie/inter_pcie_bind.f           # 可选 add-on：仅 bind 到真实 DUT 时
 ```
 
+`inter_pcie.f` 只编译根入口 `inter_pcie_pkg.sv`（依次 include `intel_pcie_if` 与 `intel_pcie_adapter_pkg`）；在自己的
+package/module 内写一行 `` `include "inter_pcie_import.svh" ``（即 `import intel_pcie_adapter_pkg::*;`）。
+
 `sim/` 下的 `filelist_tests.f`（默认回归）、`filelist_bind.f`（bind smoke）、`filelist_bind_env.f`（bind env）与
-`filelist_aip_reg.f`（AIP 寄存器访问）只含测试与顶层，追加在上述 filelist 之后。
+`filelist_aip_reg.f`（AIP 寄存器访问）只含测试与顶层（经 `INTER_PCIE_ROOT` 定位本仓库文件），追加在上述 filelist 之后。
 
 | 来源 | 初始参考/验证版本（2026-10-30） |
 | --- | --- |

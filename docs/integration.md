@@ -4,7 +4,7 @@
 
 ## 编译与对象分层
 
-设置 `INTER_PCIE_ROOT`、`PCIE_WORK_ROOT`、`HOST_MEM_ROOT`、`AIP_CORE_ROOT` 为绝对路径，依次用 `aip_core.f`、`host_mem.f`、`pcie_work.f` 与本仓库 `inter_pcie.f` 编译产品库。接口先于 `intel_pcie_adapter_pkg` 编译，外部 `host_mem_pkg` 自己包含manager，不能再单独编译一次manager。
+每个项目一行大写 `-F`，依次用 `aip_core.f`、`host_mem.f`、`dpu_common.f`、`pcie_work.f`（含 DPU 适配层）与本仓库 `inter_pcie.f` 编译产品库（filelist 内路径相对各自目录）。接口先于 `intel_pcie_adapter_pkg` 编译，外部 `host_mem_pkg` 自己包含manager，不能再单独编译一次manager。
 
 几何参数为全局编译宏：`INTEL_PCIE_DATA_WIDTH`、`INTEL_PCIE_SEGMENTS`，默认256/4。同一仿真可以有多个独立端口实例，但本版单次编译只使用一种几何配置。支持的参数组合为256×1/2/4、128×1/2；具体回归证据见[验证记录](validation.md)。
 
